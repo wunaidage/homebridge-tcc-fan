@@ -1,3 +1,8 @@
+# homebridge-tcc-read-only-fan-status
+
+### forked from https://github.com/hacctarr/homebridge-tcc-fan, this plugin does not support any change, but only read fan currently running status
+
+-------
 # homebridge-tcc-fan
 
 [![NPM Downloads](https://img.shields.io/npm/dm/homebridge-tcc-fan.svg?style=flat)](https://npmjs.org/package/homebridge-tcc-fan)

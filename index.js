@@ -190,44 +190,13 @@ tccAccessory.prototype = {
     },
 
     setState: function(value, callback) {
-        var that = this;
-        if (!updating) {
-            updating = true;
-
-            that.log("Setting fan switch for", this.name, "to", value);
-            // TODO:
-            // verify that the task did succeed
-
-            tcc.login(this.username, this.password).then(function(session) {
-                session.setFanSwitch(that.deviceID, value).then(function(taskId) {
-                    that.log("Successfully changed system!");
-                    that.log(taskId);
-                    // Update all information
-                    // TODO: call periodicUpdate to refresh all data elements
-                    updateValues(that);
-                    callback(null, Number(1));
-                });
-            }).fail(function(err) {
-                that.log('tcc Failed:', err);
-                callback(null, Number(0));
-            });
-            callback(null, Number(0));
-            updating = false
-        }
+        callback(new Error('Fan toggling is not supported'))
     },
 
     getState: function(callback) {
-        var that = this;
+        this.log("getTargetFanState is ", this.device.latestData.fanData.fanIsRunning);
 
-        // Homekit allowed values
-//         Characteristic.TargetFanState.MANUAL = 0;
-//         Characteristic.TargetFanState.AUTO = 1;
-
-        var TargetFanState = tcc.toHomeBridgeFanSystem(this.device.latestData.fanData.fanMode);
-
-        this.log("getTargetFanState is ", TargetFanState,this.name);
-
-        callback(null, Boolean(TargetFanState));
+        callback(null, Boolean(this.device.latestData.fanData.fanIsRunning));
     },
 
     getServices: function() {
