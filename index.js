@@ -20,12 +20,12 @@
 /*jslint node: true */
 'use strict';
 
-var tcc = require('./lib/tcc.js');
-var Accessory, Service, Characteristic, UUIDGen, CommunityTypes;
+const tcc = require('./lib/tcc.js');
+let Accessory, Service, Characteristic, UUIDGen;
 
-var myAccessories = [];
-var session; // reuse the same login session
-var updating; // Only one change at a time!!!!
+const myAccessories = [];
+let session; // reuse the same login session
+let updating; // Only one change at a time!!!!
 
 module.exports = function(homebridge) {
 
@@ -52,13 +52,13 @@ function tccPlatform(log, config, api) {
 tccPlatform.prototype = {
     accessories: function(callback) {
         this.log("Logging into tcc...");
-        var that = this;
+        const that = this;
 
         tcc.setCharacteristic(Characteristic);
         tcc.setDebug(this.debug);
 
         tcc.login(that.username, that.password).then(function(login) {
-            this.log("Logged into tcc!", this.devices);
+            this.log.info("Logged into tcc!", this.devices);
             session = login;
 
             let requests = this.devices.map((device) => {
@@ -67,11 +67,10 @@ tccPlatform.prototype = {
                     session.CheckDataSession(device.deviceID,
                         function(err, deviceData) {
                             if (err) {
-                                that.log("Create Device Error", err);
+                                that.log.error("Create Device Error", err);
                                 resolve();
                             } else {
-
-                                var newAccessory = new tccAccessory(that.log, device.name,
+                                const newAccessory = new tccAccessory(that.log, device.name,
                                     deviceData, that.username, that.password, device.deviceID, that.debug);
                                 // store accessory in myAccessories
                                 myAccessories.push(newAccessory);
@@ -87,69 +86,56 @@ tccPlatform.prototype = {
                 callback(myAccessories);
                 that.periodicUpdate();
                 setInterval(that.periodicUpdate.bind(this), this.refresh * 1000);
-
             });
 
             // End of login section
         }.bind(this)).fail(function(err) {
             // tell me if login did not work!
-            that.log("Error during Login:", err);
+            that.log.error("Error during Login:", err);
             callback(err);
         });
     }
 };
 
-function updateStatus(that, service, data) {
-    // var that = this;
-    // if (that.device.latestData.hasFan && that.device.latestData.fanData && that.device.latestData.fanData.fanModeOnAllowed) {
-    if (data.hasFan && data.fanData && data.fanData.fanModeOnAllowed) {
-        service.getCharacteristic(Characteristic.On).getValue();
+tccPlatform.prototype.periodicUpdate = function() {
+    if (this.debug) {
+        this.log.debug("periodicUpdate");
     }
-
-
+    checkAndHandleFanStatus(this);
 }
 
-tccPlatform.prototype.periodicUpdate = function(t) {
-    this.log("periodicUpdate");
-    var t = updateValues(this);
-}
-
-function updateValues(that) {
-    that.log("updateValues", myAccessories.length);
+function checkAndHandleFanStatus(that) {
+    if (that.debug) {
+        that.log.debug("checkAndHandleFanStatus on ", myAccessories.length, ' devices');
+    }
     myAccessories.forEach(function(accessory) {
-
         session.CheckDataSession(accessory.deviceID, function(err, deviceData) {
             if (err) {
-                that.log("ERROR: UpdateValues", accessory.name, err);
-                that.log("updateValues: Device not reachable", accessory.name);
+                that.log.error("ERROR: checkAndHandleFanStatus, Device not reachable:", accessory.name, err);
                 accessory.newAccessory.updateReachability(false);
                 tcc.login(that.username, that.password).then(function(login) {
-                    that.log("Logged into tcc!");
+                    that.log.info("Logged into tcc!");
                     session = login;
                 }.bind(this)).fail(function(err) {
                     // tell me if login did not work!
-                    that.log("Error during Login:", err);
+                    that.log.error("Error during Login:", err);
                 });
             } else {
-                if (that.debug)
-                    that.log("Update Values", accessory.name, deviceData);
-                // Data is live
+                if (that.debug) {
+                    that.log.debug("checkAndHandleFanStatus on ", accessory.name, deviceData);
+                }
 
                 if (deviceData.deviceLive) {
-                    //                    that.log("updateValues: Device reachable", accessory.name);
                     accessory.newAccessory.updateReachability(true);
                 } else {
-                    that.log("updateValues: Device not reachable", accessory.name);
+                    that.log.error("checkAndHandleFanStatus: Device not reachable", accessory.name);
                     accessory.newAccessory.updateReachability(false);
                 }
 
-                if (!tcc.deepEquals(deviceData, accessory.device)) {
-                    that.log("Change", accessory.name, tcc.diff(accessory.device, deviceData));
+                if (deviceData.latestData.fanData.fanIsRunning !== accessory.device.latestData.fanData.fanIsRunning) {
+                    that.log.info("Fan Status Changed:", accessory.name, 'from', accessory.device.latestData.fanData.fanIsRunning, 'to', deviceData.latestData.fanData.fanIsRunning);
                     accessory.device = deviceData;
-                    updateStatus(that, accessory.fanService, deviceData);
-
-                } else {
-                    that.log("No change", accessory.name);
+                    accessory.fanService.getCharacteristic(Characteristic.On).updateValue(Boolean(deviceData.latestData.fanData.fanIsRunning));
                 }
             }
         });
@@ -160,50 +146,42 @@ function updateValues(that) {
 
 function tccAccessory(log, name, deviceData, username, password, deviceID, debug) {
 
-    var uuid = UUIDGen.generate(name);
+    const uuid = UUIDGen.generate(name);
 
     this.newAccessory = new Accessory(name, uuid);
-
-    //    newAccessory.name = name;
 
     this.log = log;
     this.log("Adding TCC Device", name, deviceID);
     this.name = name;
     this.device = deviceData;
-    this.device.deviceLive = "false";
     this.username = username;
     this.password = password;
     this.deviceID = deviceID;
     this.debug = debug;
-
-    //    return newAccessory;
 }
 
 tccAccessory.prototype = {
-
     getName: function(callback) {
-
-        var that = this;
-        that.log("requesting name of", this.name);
         callback(this.name);
-
     },
 
     setState: function(value, callback) {
-        callback(new Error('Fan toggling is not supported'))
+        this.log.info('Change Fan Status is not supported.');
+        callback(null);
+        this.fanService.getCharacteristic(Characteristic.On).updateValue(this.device.latestData.fanData.fanIsRunning);
     },
 
     getState: function(callback) {
-        this.log("getTargetFanState is ", this.device.latestData.fanData.fanIsRunning);
+        if (this.debug) {
+            this.log.info("Current Fan Status is ", this.device.latestData.fanData.fanIsRunning ? "On" : "Off");
+        }
 
-        callback(null, Boolean(this.device.latestData.fanData.fanIsRunning));
+        callback(null, this.device.latestData.fanData.fanIsRunning);
     },
 
     getServices: function() {
-        var that = this;
-        that.log("getServices", this.name);
         // Information Service
-        var informationService = new Service.AccessoryInformation();
+        const informationService = new Service.AccessoryInformation();
 
         informationService
             .setCharacteristic(Characteristic.Identify, this.name)

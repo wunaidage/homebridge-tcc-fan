@@ -1,6 +1,6 @@
 {
   "name": "homebridge-tcc-read-only-fan-status",
-  "version": "0.0.1",
+  "version": "0.0.14",
   "description": "Honeywell Total Connect Comfort Fan Status for Homebridge: https://github.com/nfarina/homebridge",
   "license": "ISC",
   "keywords": [
